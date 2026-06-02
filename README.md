@@ -86,6 +86,7 @@ Run the scripts in order:
 | `02-create-adf.ps1` | Creates the Azure Data Factory instance |
 | `03-create-ssis-ir.ps1` | Creates the Azure-SSIS IR with Express VNet Injection and SSISDB catalog |
 | `04-manage-ssis-ir.ps1` | Start, stop, check status, or delete the IR |
+| `05-cleanup-ssis-ir.ps1` | Full teardown — removes the SSIS IR, ADF, and subnet (if present) |
 
 ### Quick start
 
@@ -133,10 +134,17 @@ Express VNet Injection makes restarts faster than Standard (~5-20 min), so stopp
 
 ## Cleanup
 
-To remove the SSIS IR (SSISDB on the MI is preserved):
+To remove only the SSIS IR (SSISDB on the MI is preserved):
 
 ```powershell
 .\04-manage-ssis-ir.ps1 -Action Delete
 ```
 
-To fully clean up, also delete the ADF and subnet via the Azure Portal or CLI.
+For a **full teardown** of everything this project created — the SSIS IR, the Azure Data Factory, and the SSIS IR subnet — use:
+
+```powershell
+.\05-cleanup-ssis-ir.ps1            # prompts for confirmation
+.\05-cleanup-ssis-ir.ps1 -Force     # skips confirmation
+```
+
+Each resource is checked for existence first and skipped if not found. The SQL Managed Instance, its VNet, and the SSISDB catalog are **never** touched.
