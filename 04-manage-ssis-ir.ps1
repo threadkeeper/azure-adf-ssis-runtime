@@ -37,7 +37,7 @@ switch ($Action) {
         az datafactory integration-runtime stop `
             --resource-group $ResourceGroup `
             --factory-name $AdfName `
-            --name $IrName --yes
+            --name $IrName
         Write-Host "IR '$IrName' stopped. No compute charges while stopped." -ForegroundColor Green
     }
     "Status" {

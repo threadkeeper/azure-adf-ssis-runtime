@@ -73,6 +73,9 @@ Copy-Item params.sample.ps1 params.ps1
 | `$MIEndpoint` | Full FQDN of the SQL MI |
 | `$VNetResourceGroup` | Resource group containing the VNet (may differ from `$ResourceGroup`) |
 | `$SubnetPrefix` | Free /27 CIDR block in the VNet (verify no overlap) |
+| `$LogAnalyticsWorkspace` | Log Analytics workspace for SSIS IR diagnostics (created if missing) |
+| `$LogAnalyticsResourceGroup` | Resource group for the workspace (defaults to `$ResourceGroup`) |
+| `$DiagnosticSettingName` | Name of the ADF diagnostic setting |
 
 > **Note:** `params.ps1` is excluded from source control via `.gitignore`.
 
@@ -84,9 +87,13 @@ Run the scripts in order:
 |--------|---------|
 | `01-create-subnet.ps1` | Creates a /27 subnet in the existing VNet for the SSIS IR |
 | `02-create-adf.ps1` | Creates the Azure Data Factory instance |
+| `02b-enable-diagnostics.ps1` | Creates a Log Analytics workspace (if missing) and enables ADF diagnostic settings so IR start/stop and SSIS package logs are captured |
 | `03-create-ssis-ir.ps1` | Creates the Azure-SSIS IR with Express VNet Injection and SSISDB catalog |
 | `04-manage-ssis-ir.ps1` | Start, stop, check status, or delete the IR |
 | `05-cleanup-ssis-ir.ps1` | Full teardown — removes the SSIS IR, ADF, and subnet (if present) |
+| `watch-ir.ps1` | Live monitor — tails IR start logs and control-plane status until the IR reaches `Started` or `Failed` |
+
+> **Run `02b` before `03`** so the very first IR start is captured in Log Analytics.
 
 ### Quick start
 
@@ -94,6 +101,7 @@ Run the scripts in order:
 # 1. Deploy infrastructure
 .\01-create-subnet.ps1
 .\02-create-adf.ps1
+.\02b-enable-diagnostics.ps1   # enable IR + SSIS logging before first start
 .\03-create-ssis-ir.ps1
 
 # 2. Day-to-day management
@@ -112,6 +120,42 @@ These scripts use **Express VNet Injection** (recommended):
 | Subnet delegation | Microsoft.Batch/batchAccounts | Not used |
 | NSG rules | Not needed | Complex inbound/outbound rules required |
 | UDR / Route table | Not needed | Required for ADF management traffic |
+
+## Diagnostics & IR Start Logs
+
+`02b-enable-diagnostics.ps1` routes the following ADF log categories to Log Analytics:
+
+- `SSISIntegrationRuntimeLogs` — **IR start/stop events** (use these to troubleshoot slow or failed starts)
+- `SSISPackageEventMessages`, `SSISPackageExecutableStatistics`, `SSISPackageEventMessageContext`, `SSISPackageExecutionComponentPhases`, `SSISPackageExecutionDataStatistics` — package execution telemetry
+
+Query IR start events in the workspace:
+
+```kusto
+ADFSSISIntegrationRuntimeLogs
+| where TimeGenerated > ago(2h)
+| order by TimeGenerated asc
+```
+
+> Diagnostic settings only capture events that occur **after** they are enabled, which is why `02b` runs before the first IR start.
+
+### Live monitoring with `watch-ir.ps1`
+
+Instead of manually re-running the KQL query, `watch-ir.ps1` polls the IR status and streams **all** new `ADFSSISIntegrationRuntimeLogs` rows as they are ingested. It exits automatically when the IR reaches `Started` or the start `Failed`.
+
+```powershell
+# Start the IR in one terminal
+.\04-manage-ssis-ir.ps1 -Action Start
+
+# Tail logs + status in another terminal
+.\watch-ir.ps1
+
+# Optional flags
+.\watch-ir.ps1 -StopOnError          # auto-stop the IR on the first SQL/login/connection error
+.\watch-ir.ps1 -IntervalSeconds 20   # change poll interval (default 30s)
+.\watch-ir.ps1 -TimeoutMinutes 90    # change max watch time (default 60 min)
+```
+
+> Requires diagnostics enabled (`02b-enable-diagnostics.ps1`). The script reads all resource names from `params.ps1` and resolves the Log Analytics workspace GUID automatically.
 
 ## Deploying SSIS Packages
 

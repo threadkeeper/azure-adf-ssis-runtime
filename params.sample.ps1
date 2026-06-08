@@ -31,5 +31,10 @@ $NodeSize             = "Standard_D2_v3"                    # D2_v3 = 2 vCPU, 8 
 $NodeCount            = 1                                    # Scale out later if needed
 $Edition              = "Standard"                           # Standard or Enterprise
 
+# --- Diagnostics (SSIS IR start/stop + package logs to Log Analytics) ---
+$LogAnalyticsWorkspace    = "<your-log-analytics-workspace>" # Workspace name (created if missing)
+$LogAnalyticsResourceGroup = $ResourceGroup                 # RG for the workspace (defaults to ADF RG)
+$DiagnosticSettingName    = "adf-ssis-diagnostics"          # Name of the ADF diagnostic setting
+
 # --- Derived values (do not edit) ---
 $VNetId = "/subscriptions/$SubscriptionId/resourceGroups/$VNetResourceGroup/providers/Microsoft.Network/virtualNetworks/$VNetName"
